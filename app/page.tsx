@@ -43,8 +43,21 @@ const N8N_APPROVE_MORNING_URL = process.env.NEXT_PUBLIC_N8N_APPROVE_MORNING_WEBH
 const N8N_APPROVE_EVENING_URL = process.env.NEXT_PUBLIC_N8N_APPROVE_EVENING_WEBHOOK || '';
 const N8N_POST_NOW_MORNING_URL = process.env.NEXT_PUBLIC_N8N_POST_NOW_MORNING_WEBHOOK || '';
 const N8N_POST_NOW_EVENING_URL = process.env.NEXT_PUBLIC_N8N_POST_NOW_EVENING_WEBHOOK || '';
-const N8N_TRANSLATE_URL = process.env.NEXT_PUBLIC_N8N_TRANSLATE_WEBHOOK || '';
 const N8N_FEEDBACK_URL = process.env.NEXT_PUBLIC_N8N_FEEDBACK_WEBHOOK || '';
+// Custom-post creation goes through our own /api/create-post route (see that
+// file) instead of calling n8n directly from the browser — n8n's webhook
+// response doesn't carry CORS headers, so a direct browser fetch to it
+// fails even though the workflow itself runs fine.
+
+// The two fixed daily posting slots used by the "Add Custom Post" / "Add Post" flows.
+const SLOT_MORNING = '06:30'; // "সাড়ে ছয়টা"
+const SLOT_EVENING = '19:00'; // "সাতটা"
+
+// Human-readable slot labels sent to the create-post webhook — "6:30 AM" /
+// "7:00 PM" only, never the internal 24-hour value.
+function slotLabel(slotTime: string): string {
+  return slotTime === SLOT_MORNING ? '6:30 AM' : '7:00 PM';
+}
 
 // ============================================================
 // Translations
@@ -77,6 +90,14 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     noNotifications: 'No notifications',
     hasPostsHint: 'Has posts',
     noPostsHint: 'No posts',
+    addCustomPost: 'Add Custom Post',
+    createPost: 'Create Post',
+    slotSelection: 'Slot Selection',
+    titleLabel: 'Title',
+    descriptionLabel: 'Description',
+    imagePromptLabel: 'Image Prompt',
+    addPostBtn: '+ Add Post',
+    noPostForSlot: 'No post for the {slot} slot yet.',
     locale: 'en-US',
   },
   bn: {
@@ -106,6 +127,14 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     noNotifications: 'কোনো নোটিফিকেশন নেই',
     hasPostsHint: 'পোস্ট আছে',
     noPostsHint: 'পোস্ট নেই',
+    addCustomPost: 'কাস্টম পোস্ট যোগ করুন',
+    createPost: 'পোস্ট তৈরি করুন',
+    slotSelection: 'স্লট নির্বাচন',
+    titleLabel: 'টাইটেল',
+    descriptionLabel: 'বিবরণ',
+    imagePromptLabel: 'ইমেজ প্রম্পট',
+    addPostBtn: '+ পোস্ট যোগ করুন',
+    noPostForSlot: '{slot} স্লটে এখনো কোনো পোস্ট নেই।',
     locale: 'bn-BD',
   },
   de: {
@@ -135,6 +164,14 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     noNotifications: 'Keine Benachrichtigungen',
     hasPostsHint: 'Hat Beiträge',
     noPostsHint: 'Keine Beiträge',
+    addCustomPost: 'Individuellen Beitrag hinzufügen',
+    createPost: 'Beitrag erstellen',
+    slotSelection: 'Slot-Auswahl',
+    titleLabel: 'Titel',
+    descriptionLabel: 'Beschreibung',
+    imagePromptLabel: 'Bild-Prompt',
+    addPostBtn: '+ Beitrag hinzufügen',
+    noPostForSlot: 'Noch kein Beitrag für den {slot}-Slot.',
     locale: 'de-DE',
   },
 };
@@ -241,6 +278,24 @@ function captionForLanguage(rawCaption: string | null, selectedLanguage: string)
   return fallback || rawCaption || '';
 }
 
+// True only when the already-parsed multi-language caption actually contains
+// the requested language. Used to tell "this caption already has a Bengali
+// version" apart from "this caption is single-language text and needs a real
+// translation call" — the two used to be treated the same, which is why
+// switching the language in the edit popup silently kept showing English.
+function hasLanguageKey(byLang: Record<string, string>, selectedLanguage: string): boolean {
+  const requested = String(selectedLanguage || 'English').toLowerCase();
+  const aliases: Record<string, string[]> = {
+    english: ['english', 'en', 'eng'],
+    bengali: ['bengali', 'bangla', 'bn', 'bd'],
+    german: ['german', 'deutsch', 'de', 'ger'],
+  };
+  const wanted = aliases[requested] || [requested];
+  return Object.keys(byLang).some(
+    (k) => wanted.includes(k.toLowerCase()) || wanted.some((w) => k.toLowerCase().includes(w))
+  );
+}
+
 function formatCardTime(value: string | null): string {
   const raw = String(value || '').trim();
   if (!raw) return '7:00 PM';
@@ -337,7 +392,17 @@ export default function Page() {
   const [banner, setBanner] = useState('');
   const [generating, setGenerating] = useState(false);
   const [postTimes, setPostTimes] = useState<Record<string, string>>({});
-  const [language, setLanguage] = useState<LangCode>('en');
+  const [language, setLanguage] = useState<LangCode>(() => {
+    try {
+      const saved = localStorage.getItem('modal_language');
+      if (saved && (saved === 'en' || saved === 'bn' || saved === 'de')) {
+        return saved as LangCode;
+      }
+    } catch {
+      // ignore
+    }
+    return 'en';
+  });
   const [monthView, setMonthView] = useState(new Date());
   const [viewPost, setViewPost] = useState<Post | null>(null);
   const [improvingPostId, setImprovingPostId] = useState<string | null>(null);
@@ -370,6 +435,26 @@ export default function Page() {
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSavedBanner, setFeedbackSavedBanner] = useState('');
 
+  // Caches a translated caption per `${postId}__${language}` so switching the
+  // language dropdown back and forth doesn't keep re-calling the webhook and
+  // always shows a real, cached translation instead of stale English text.
+  const [translationCache, setTranslationCache] = useState<Record<string, string>>({});
+
+  // ---- "Add Custom Post" feature state ----
+  const [showCustomPostModal, setShowCustomPostModal] = useState(false);
+  const [customPostSlotLock, setCustomPostSlotLock] = useState<string | null>(null);
+  const [customPostForm, setCustomPostForm] = useState({
+    title: '',
+    description: '',
+    imagePrompt: '',
+    slot: SLOT_MORNING,
+  });
+  const [customPostSubmitting, setCustomPostSubmitting] = useState(false);
+  const [customPostError, setCustomPostError] = useState('');
+  const [addPostPopupOpen, setAddPostPopupOpen] = useState(false);
+  const [addPostPopupSlot, setAddPostPopupSlot] = useState<string | null>(null);
+  const [fillingSlotGenerating, setFillingSlotGenerating] = useState(false);
+
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
   const selectedDateLabel = useMemo(() => fmtDate(selectedDate), [selectedDate]);
   const dateSet = useMemo(() => new Set(dates.map((d) => d.date)), [dates]);
@@ -383,6 +468,18 @@ export default function Page() {
   }, [dates]);
   const monthCells = useMemo(() => getMonthGrid(monthView), [monthView]);
   const modalHasChanges = modalDraftCaption !== (modalCaptionText || '');
+
+  // Which of the two fixed daily slots (6:30 / 7:00) still has no post for the
+  // selected date — used to show the small "+ Add Post" button. Only relevant
+  // when exactly one of the two slots is filled.
+  const missingSlot: 'morning' | 'evening' | null = useMemo(() => {
+    if (posts.length === 0) return null;
+    const hasMorning = posts.some((p) => isMorningSlot(postTimes[p.id] || p.scheduled_time));
+    const hasEvening = posts.some((p) => !isMorningSlot(postTimes[p.id] || p.scheduled_time));
+    if (hasMorning && !hasEvening) return 'evening';
+    if (hasEvening && !hasMorning) return 'morning';
+    return null;
+  }, [posts, postTimes]);
 
   // ----------------------------------------------------------
   // Data loading (Supabase)
@@ -504,6 +601,14 @@ export default function Page() {
   }, [notifications]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem('modal_language', language);
+    } catch {
+      // ignore
+    }
+  }, [language]);
+
+  useEffect(() => {
     if (!platformMenuPostId) return;
     const timer = setTimeout(() => setPlatformMenuPostId(null), 10000);
     return () => clearTimeout(timer);
@@ -548,48 +653,99 @@ export default function Page() {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [notifOpen]);
 
+  const [modalTranslationFailed, setModalTranslationFailed] = useState(false);
+
   useEffect(() => {
     if (!viewPost) {
       setModalCaptionText('');
       setModalCaptionLoading(false);
+      setModalTranslationFailed(false);
       return;
     }
 
-    const selected = improveLangByPost[viewPost.id] || 'English';
+    const postId = viewPost.id;
+    const selected = improveLangByPost[postId] || 'English';
+    const cacheKey = `${postId}__${selected}`;
+    setModalTranslationFailed(false);
+
+    // First: try to use a parsed multi-language caption if it exists
     const parsed = parseCaptionByLanguage(viewPost.caption);
 
+    // If caption is multi-language formatted, use it directly
     if (parsed) {
       const resolved = captionForLanguage(viewPost.caption, selected);
       setModalCaptionText(resolved);
-      setCaptionByPost((prev) => ({ ...prev, [viewPost.id]: resolved }));
+      setCaptionByPost((prev) => ({ ...prev, [postId]: resolved }));
+      setTranslationCache((prev) => ({ ...prev, [cacheKey]: resolved }));
       setModalCaptionLoading(false);
       return;
     }
 
+    // Second: check if we already translated this in this session
+    if (translationCache[cacheKey] !== undefined) {
+      const cached = translationCache[cacheKey];
+      setModalCaptionText(cached);
+      setCaptionByPost((prev) => ({ ...prev, [postId]: cached }));
+      setModalCaptionLoading(false);
+      return;
+    }
+
+    // Third: if English is selected, just show the caption as-is
+    const isEnglish = ['english', 'en', 'eng'].includes(selected.toLowerCase());
+    if (isEnglish) {
+      setModalCaptionText(viewPost.caption || '');
+      setCaptionByPost((prev) => ({ ...prev, [postId]: viewPost.caption || '' }));
+      setTranslationCache((prev) => ({ ...prev, [cacheKey]: viewPost.caption || '' }));
+      setModalCaptionLoading(false);
+      return;
+    }
+
+    // Fourth: call the translation API for other languages
     let active = true;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     (async () => {
       setModalCaptionLoading(true);
       try {
-        const res = await fetch(N8N_TRANSLATE_URL, {
+        const res = await fetch('/api/translate-caption', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: viewPost.caption || '', language: selected }),
+          signal: controller.signal,
         });
         const json = await res.json().catch(() => ({}));
-        const resolved = json?.translatedText || viewPost.caption || '';
+        const resolved = json && (json.translatedText || json.translation);
+        
         if (active) {
-          setModalCaptionText(resolved);
-          setCaptionByPost((prev) => ({ ...prev, [viewPost.id]: resolved }));
+          if (resolved) {
+            setModalCaptionText(resolved);
+            setCaptionByPost((prev) => ({ ...prev, [postId]: resolved }));
+            setTranslationCache((prev) => ({ ...prev, [cacheKey]: resolved }));
+          } else {
+            // Fallback to original caption if translation failed
+            setModalCaptionText(viewPost.caption || '');
+            setCaptionByPost((prev) => ({ ...prev, [postId]: viewPost.caption || '' }));
+            setModalTranslationFailed(true);
+          }
         }
       } catch {
-        if (active) setModalCaptionText(viewPost.caption || '');
+        // Never leave the caption blank — show original and indicate failure
+        if (active) {
+          setModalCaptionText(viewPost.caption || '');
+          setCaptionByPost((prev) => ({ ...prev, [postId]: viewPost.caption || '' }));
+          setModalTranslationFailed(true);
+        }
       } finally {
+        clearTimeout(timeoutId);
         if (active) setModalCaptionLoading(false);
       }
     })();
 
     return () => {
       active = false;
+      clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [viewPost, improveLangByPost]);
 
@@ -737,6 +893,124 @@ export default function Page() {
     }
   }
 
+  // Runs the normal "Generate Content" flow but for only ONE slot (used by
+  // the small "+ Add Post" -> "Generate Content" path to fill just the empty
+  // slot, leaving the already-created slot untouched).
+  async function generateContentForSlot(slotTime: string) {
+    setFillingSlotGenerating(true);
+    setBanner('');
+    try {
+      const body = JSON.stringify({ date: fmtDate(selectedDate) });
+      const url = isMorningSlot(slotTime) ? N8N_GENERATE_CONTENT_MORNING_URL : N8N_GENERATE_CONTENT_EVENING_URL;
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      const json = await res.json().catch(() => null);
+      const insertedCount = await insertGeneratedPosts(json, selectedDate);
+
+      if (insertedCount > 0) {
+        setBanner(`${t.generatedBanner} ${insertedCount} ${t.postsWord} ${fmtDate(selectedDate)}.`);
+        setAddPostPopupOpen(false);
+        await loadDates();
+        await loadPosts(selectedDate);
+      } else if (res.ok) {
+        setBanner('The webhook responded but returned no content to save.');
+      } else {
+        setBanner('Could not generate content. Check the n8n webhook.');
+      }
+    } catch {
+      setBanner('Could not reach the n8n webhook.');
+    } finally {
+      setFillingSlotGenerating(false);
+    }
+  }
+
+  // "Add Custom Post" submit handler: optionally notifies the custom-post
+  // webhook (title, description, image, date, slot time) so it can be picked
+  // up downstream (e.g. scheduling automation), then saves the post itself so
+  // it immediately shows up as a card matched to its slot/date.
+  async function submitCustomPost() {
+    const title = customPostForm.title.trim();
+    const description = customPostForm.description.trim();
+    const imagePrompt = customPostForm.imagePrompt.trim();
+    const slot = customPostForm.slot || SLOT_MORNING;
+
+    if (!title || !description) return;
+
+    setCustomPostSubmitting(true);
+    setCustomPostError('');
+
+    // Generous timeout so "Preparing..." doesn't spin forever if the webhook
+    // never answers — but it does NOT fall back to a locally-built post; a
+    // failure here means no post is created and the form stays open to retry.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
+
+    try {
+      const res = await fetch('/api/create-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content: description,
+          imagePrompt,
+          slot: slotLabel(slot),
+          date: fmtDate(selectedDate),
+        }),
+        signal: controller.signal,
+      });
+
+      const raw = await res.text();
+      let json: unknown = null;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
+      }
+
+      if (!res.ok) {
+        const serverMsg =
+          json && typeof json === 'object' && 'error' in (json as Record<string, unknown>)
+            ? String((json as Record<string, unknown>).error)
+            : `status ${res.status}`;
+        throw new Error(serverMsg);
+      }
+
+      const item = Array.isArray(json) ? json[0] : json;
+      if (!item) throw new Error('The webhook responded but returned no post data.');
+
+      const resultTitle = pick(item, 'Title', 'title') || title;
+      const resultCaption = pick(item, 'Caption', 'caption') || description;
+      const resultImage = pick(item, 'Image LInk', 'Image Link', 'image_url') || '';
+      const resultTime = normalizeIncomingTime(pick(item, 'time', 'Time') || slot);
+      const resultDate = fromDDMMYYYY(pick(item, 'Post Date', 'post_date')) || selectedDate;
+
+      const { error } = await supabase.from('posts').insert({
+        title: resultTitle || null,
+        caption: resultCaption || null,
+        image_url: resultImage || null,
+        scheduled_date: resultDate,
+        scheduled_time: resultTime,
+        status: 'draft',
+      });
+
+      if (error) throw new Error(error.message || 'Could not save the custom post to Supabase.');
+
+      setBanner(`"${resultTitle}" added as a custom post.`);
+      setShowCustomPostModal(false);
+      setCustomPostSlotLock(null);
+      setCustomPostForm({ title: '', description: '', imagePrompt: '', slot: SLOT_MORNING });
+      setAddPostPopupOpen(false);
+      await loadDates();
+      await loadPosts(selectedDate);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Create Post failed:', reason);
+      setCustomPostError(`Could not generate the output: ${reason}`);
+    } finally {
+      clearTimeout(timeoutId);
+      setCustomPostSubmitting(false);
+    }
+  }
+
   // Shared payload for approve / post-now webhooks: date, image, time,
   // status, the currently-active caption (translated/edited if changed),
   // title, and the Google Drive image link.
@@ -772,7 +1046,13 @@ export default function Page() {
         body: JSON.stringify({ postId: post.id, platforms: selectedPlatforms, ...buildActionPayload(post) }),
       });
       const json = await res.json().catch(() => ({}));
-      if (res.ok && json.posted) {
+      // n8n replies with e.g. [{ "update": "Posted", "Post date": "09-09-2026" }]
+      const item = Array.isArray(json) ? json[0] : json;
+      const isPosted = String(pick(item, 'update', 'status') || '').toLowerCase() === 'posted';
+      if (res.ok && isPosted) {
+        // Reflect the status right away instead of waiting only on Realtime —
+        // belt-and-braces in case the automation doesn't also write Supabase.
+        await supabase.from('posts').update({ status: 'posted' }).eq('id', post.id);
         setPostNowPendingPostId(null);
         setPostNowSuccessBanner('Your post is successful.');
         await loadPosts(selectedDate);
@@ -900,6 +1180,18 @@ export default function Page() {
     setModalCaptionText(updated.caption || nextCaption);
     setModalDraftCaption(updated.caption || nextCaption);
     setCaptionByPost((prev) => ({ ...prev, [postId]: updated.caption || nextCaption }));
+
+    // The source text changed, so any cached translations for this post are
+    // now stale — clear them and re-cache the current language's fresh value.
+    setTranslationCache((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (k.startsWith(`${postId}__`)) delete next[k];
+      });
+      const selected = improveLangByPost[postId] || 'English';
+      next[`${postId}__${selected}`] = updated.caption || nextCaption;
+      return next;
+    });
 
     await loadDates();
     await loadPosts(selectedDate, { silent: true });
@@ -1216,11 +1508,90 @@ export default function Page() {
               </article>
             ))}
             {!loading && posts.length === 0 ? (
-              <div className="empty-state">
+              <div className="empty-state" style={{ textAlign: 'left' }}>
                 <p>{t.noPosts}</p>
-                <button onClick={generateContent} disabled={generating}>
-                  {generating ? t.triggering : t.generate}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                  <button onClick={generateContent} disabled={generating || customPostSubmitting}>
+                    {generating ? t.triggering : t.generate}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-white"
+                    disabled={generating || customPostSubmitting}
+                    onClick={() => {
+                      setCustomPostSlotLock(null);
+                      setCustomPostForm({ title: '', description: '', imagePrompt: '', slot: SLOT_MORNING });
+                      setCustomPostError('');
+                      setShowCustomPostModal(true);
+                    }}
+                  >
+                    {customPostSubmitting ? t.triggering : t.addCustomPost}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!loading && posts.length > 0 && missingSlot ? (
+              <div style={{ position: 'relative', marginTop: '16px', textAlign: 'left' }}>
+                <button
+                  type="button"
+                  className="btn-white"
+                  onClick={() => {
+                    const slotTime = missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING;
+                    setAddPostPopupSlot(slotTime);
+                    setAddPostPopupOpen((v) => !v);
+                  }}
+                >
+                  {t.addPostBtn}
                 </button>
+                {addPostPopupOpen ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      marginTop: '8px',
+                      background: '#fff',
+                      border: '1px solid #e1e5f0',
+                      borderRadius: '10px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      padding: '16px',
+                      zIndex: 20,
+                      minWidth: '260px',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 12px', color: '#2d3a64' }}>
+                      {t.noPostForSlot.replace('{slot}', missingSlot === 'morning' ? '6:30' : '7:00')}
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-white"
+                        onClick={() => {
+                          const slotTime = addPostPopupSlot || (missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING);
+                          setCustomPostSlotLock(slotTime);
+                          setCustomPostForm({ title: '', description: '', imagePrompt: '', slot: slotTime });
+                          setCustomPostError('');
+                          setShowCustomPostModal(true);
+                          setAddPostPopupOpen(false);
+                        }}
+                      >
+                        {t.addCustomPost}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={fillingSlotGenerating}
+                        onClick={() =>
+                          generateContentForSlot(
+                            addPostPopupSlot || (missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING)
+                          )
+                        }
+                      >
+                        {fillingSlotGenerating ? t.triggering : t.generate}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -1247,6 +1618,124 @@ export default function Page() {
               </button>
               <button onClick={submitDateFeedback} disabled={!feedbackText.trim()}>
                 Submit Feedback
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showCustomPostModal ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (!customPostSubmitting) setShowCustomPostModal(false);
+          }}
+        >
+          <div className="modal custom-post-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="modal-close"
+              onClick={() => setShowCustomPostModal(false)}
+              disabled={customPostSubmitting}
+            >
+              ✕
+            </button>
+            <h3 style={{ marginTop: 0 }}>{t.addCustomPost}</h3>
+
+            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
+              {t.titleLabel}
+            </label>
+            <input
+              type="text"
+              value={customPostForm.title}
+              onChange={(e) => setCustomPostForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder={t.titleLabel}
+              disabled={customPostSubmitting}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: '1px solid #d9deec',
+                fontSize: '14px',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
+              {t.descriptionLabel}
+            </label>
+            <textarea
+              className="feedback-textarea"
+              value={customPostForm.description}
+              onChange={(e) => setCustomPostForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder={t.descriptionLabel}
+              disabled={customPostSubmitting}
+            />
+
+            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
+              {t.imagePromptLabel}
+            </label>
+            <input
+              type="text"
+              value={customPostForm.imagePrompt}
+              onChange={(e) => setCustomPostForm((f) => ({ ...f, imagePrompt: e.target.value }))}
+              placeholder={t.imagePromptLabel}
+              disabled={customPostSubmitting}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: '1px solid #d9deec',
+                fontSize: '14px',
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <label style={{ display: 'block', margin: '14px 0 8px', fontWeight: 600, color: '#2d3a64' }}>
+              {t.slotSelection}
+            </label>
+            <div style={{ display: 'flex', gap: '18px' }}>
+              {[
+                { value: SLOT_MORNING, label: '6:30' },
+                { value: SLOT_EVENING, label: '7:00' },
+              ].map((opt) => {
+                const locked = !!customPostSlotLock && customPostSlotLock !== opt.value;
+                return (
+                  <label
+                    key={opt.value}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      color: locked ? '#aab0c2' : '#2d3a64',
+                      cursor: locked ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="custom-post-slot"
+                      checked={customPostForm.slot === opt.value}
+                      disabled={customPostSubmitting || locked}
+                      onChange={() => setCustomPostForm((f) => ({ ...f, slot: opt.value }))}
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
+
+            {customPostError ? (
+              <p style={{ margin: '14px 0 0', fontSize: '13px', color: '#b3261e' }}>{customPostError}</p>
+            ) : null}
+
+            <div className="modal-actions">
+              <button className="btn-white" onClick={() => setShowCustomPostModal(false)} disabled={customPostSubmitting}>
+                {t.cancel}
+              </button>
+              <button
+                onClick={submitCustomPost}
+                disabled={customPostSubmitting || !customPostForm.title.trim() || !customPostForm.description.trim()}
+              >
+                {customPostSubmitting ? t.triggering : t.createPost}
               </button>
             </div>
           </div>
@@ -1331,7 +1820,14 @@ export default function Page() {
                   />
                 </div>
               ) : (
-                <p className="modal-caption">{modalCaptionLoading ? 'Translating...' : modalCaptionText}</p>
+                <>
+                  <p className="modal-caption">{modalCaptionLoading ? 'Translating...' : modalCaptionText}</p>
+                  {!modalCaptionLoading && modalTranslationFailed ? (
+                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#9a5b00' }}>
+                      Translation service unavailable right now — showing the original text.
+                    </p>
+                  ) : null}
+                </>
               )}
             </div>
             <div className="modal-actions">
