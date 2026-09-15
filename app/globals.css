@@ -225,7 +225,7 @@ body {
   position: fixed;
   left: 70px;
   bottom: 18px;
-  width:90px
+  width:90px;
   z-index: 50;
   display: flex;
   align-items: center;
