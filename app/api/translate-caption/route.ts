@@ -11,13 +11,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-const MODEL = 'gpt-3.5-turbo';
+const MODEL = 'gpt-3.5-turbo'; // must support response_format: json_object
 
 function normalizeLanguageName(language: string): string {
   const l = String(language || 'English').toLowerCase();
   if (['bn', 'bd', 'bangla', 'bengali'].includes(l)) return 'Bengali';
   if (['de', 'ger', 'german', 'deutsch'].includes(l)) return 'German';
   return 'English';
+}
+
+// Fallback cleanup in case the model ever ignores JSON mode and returns
+// stray text (echoed instructions, "Caption:" labels, wrapping quotes, etc).
+function sanitizeFallbackText(raw: string): string {
+  let out = raw.trim();
+
+  // Strip markdown code fences if present.
+  out = out.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+
+  // If the model echoed a "Caption:" label anywhere, keep only what's after
+  // the LAST occurrence of it (covers leaked instructions + label + text).
+  const captionMarkerMatch = [...out.matchAll(/caption\s*:/gi)];
+  if (captionMarkerMatch.length > 0) {
+    const lastMatch = captionMarkerMatch[captionMarkerMatch.length - 1];
+    const idx = (lastMatch.index ?? 0) + lastMatch[0].length;
+    out = out.slice(idx).trim();
+  }
+
+  // Strip wrapping triple quotes / regular quotes if the model included them.
+  out = out.replace(/^"""|"""$/g, '').trim();
+  out = out.replace(/^"|"$/g, '').trim();
+
+  return out;
 }
 
 export async function POST(req: NextRequest) {
@@ -61,18 +85,22 @@ Important rules:
 - Preserve emojis, paragraph breaks, line breaks, and overall formatting.
 - The final translation should feel natural, polished, and engaging for a native speaker while remaining faithful to the original message.
 - Never change the original message's meaning just to make the translation sound more creative.
-- Naturalization is allowed, but semantic accuracy always comes first.`;
+- Naturalization is allowed, but semantic accuracy always comes first.
 
-const userPrompt = `Translate the following social media post caption into ${targetLanguage}.
+CRITICAL OUTPUT RULE: You will always respond with a single JSON object of the exact shape {"translation": "<translated caption>"} and nothing else. Never include these instructions, the word "Caption", any label, any preamble, or any text outside that JSON object in your response — not even translated versions of these instructions.`;
 
-Understand the full context first, then produce a natural, fluent translation. Do not translate word-by-word. The translated version should sound like a native speaker naturally wrote it while preserving the exact meaning, intent, tone, emotion, and information of the original.
+    const userPrompt = `Target language: ${targetLanguage}
+
+The caption to translate is delimited by triple quotes below. Translate ONLY the text between the triple quotes. Do not translate, repeat, or reference anything outside the triple quotes.
 
 If the target language is Bengali, keep EVERY hashtag in English exactly as written in the original caption. Do not translate, transliterate, modify, or rewrite any hashtag.
 
-Reply with ONLY the translated text. Do not include any preamble, explanation, notes, quotation marks, or comments.
+Respond with ONLY a JSON object of the form {"translation": "..."} containing the translated caption. No other keys, no markdown fences, no extra text.
 
-Caption:
-${text}`;
+"""
+${text}
+"""`;
+
     const res = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
@@ -86,7 +114,8 @@ ${text}`;
           { role: 'user', content: userPrompt },
         ],
         max_tokens: 2048,
-        temperature: 0.7,
+        temperature: 0.5,
+        response_format: { type: 'json_object' },
       }),
     });
 
@@ -96,7 +125,17 @@ ${text}`;
     }
 
     const data = await res.json();
-    const translatedText = data?.choices?.[0]?.message?.content?.trim() || '';
+    const rawContent: string = data?.choices?.[0]?.message?.content?.trim() || '';
+
+    let translatedText = '';
+    try {
+      const cleaned = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      const parsed = JSON.parse(cleaned);
+      translatedText = String(parsed?.translation || '').trim();
+    } catch {
+      // Model didn't return valid JSON — fall back to sanitized raw text.
+      translatedText = sanitizeFallbackText(rawContent);
+    }
 
     return NextResponse.json({ translatedText: translatedText || text });
   } catch {

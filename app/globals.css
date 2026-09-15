@@ -800,6 +800,22 @@ button.ghost {
   border-bottom: none
 }
 
+/* Sidebar logo: placed bottom-left under the calendar legend. */
+.sidebar {
+  position: relative; /* ensure absolute child is positioned to sidebar */
+}
+.sidebar-logo {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  z-index: 5;
+}
+.sidebar-logo-img {
+  width: var(--sidebar-logo-width, 72px);
+  height: auto;
+  display: block;
+}
+
 .clickable-title {
   cursor: pointer
 }

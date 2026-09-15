@@ -3,6 +3,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import logoPath from './Pasted image.png';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -1331,6 +1332,9 @@ export default function Page() {
               />
               <span>posted</span>
             </span>
+          </div>
+          <div className="sidebar-logo">
+            <img src={logoPath} alt="Logo" className="sidebar-logo-img" />
           </div>
         </aside>
 
