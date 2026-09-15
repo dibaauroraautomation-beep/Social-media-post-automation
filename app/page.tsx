@@ -1334,7 +1334,7 @@ export default function Page() {
             </span>
           </div>
           <div className="sidebar-logo">
-            <img src={logoPath} alt="Logo" className="sidebar-logo-img" />
+            <img src="./Pasted image.png" alt="Logo" className="sidebar-logo-img" />
           </div>
         </aside>
 
