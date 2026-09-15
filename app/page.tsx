@@ -3,7 +3,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import logoPath from './Pasted image.png';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -717,7 +716,7 @@ export default function Page() {
         });
         const json = await res.json().catch(() => ({}));
         const resolved = json && (json.translatedText || json.translation);
-        
+
         if (active) {
           if (resolved) {
             setModalCaptionText(resolved);
@@ -1334,7 +1333,7 @@ export default function Page() {
             </span>
           </div>
           <div className="sidebar-logo">
-            <img src="./Pasted image.png" alt="Logo" className="sidebar-logo-img" />
+            <img src="/logo.png" alt="Logo" className="sidebar-logo-img" />
           </div>
         </aside>
 
@@ -1387,15 +1386,18 @@ export default function Page() {
                       }}
                     />
                   </div>
+
                   <div className="card-media">
                     <h3 className="post-title clickable-title" onClick={() => setViewPost(post)}>
                       {deriveTitle(post)}
                     </h3>
+
                     <div className="schedule-hint-row">
                       <button type="button" className="schedule-hint-btn" disabled aria-disabled="true">
                         {formatCardTime(post.scheduled_time)}
                         {'\u00A0\u00A0\u00A0'}or
                       </button>
+
                       <div className="approve-wrap post-now-wrap">
                         <button
                           type="button"
@@ -1409,6 +1411,7 @@ export default function Page() {
                         ) : null}
                       </div>
                     </div>
+
                     <div className="actions">
                       <button className="show-more-btn btn-white" onClick={() => setViewPost(post)}>
                         {t.showMore}
@@ -1450,6 +1453,7 @@ export default function Page() {
                             <span className="platform-caret">▼</span>
                           ) : null}
                         </button>
+
                         {platformMenuPostId === post.id ? (
                           <div className="platform-menu">
                             {['facebook', 'instagram', 'linkedin'].map((pl) => {
@@ -1858,7 +1862,6 @@ export default function Page() {
                         setUnreadCount((n) => n + 1);
                         setShowMoreNotice(notice);
                         setTimeout(() => setShowMoreNotice(''), 6500);
-                        // no manual polling needed — Realtime updates viewPost when n8n rewrites the row
                       }
                     }}
                   >

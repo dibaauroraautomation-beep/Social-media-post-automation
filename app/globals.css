@@ -211,7 +211,31 @@ body {
   background: #fff;
   color: #1a1d28;
   padding: 20px;
-  border-right: 1px solid #e5e9f2
+  border-right: 1px solid #e5e9f2;
+  position: relative;
+}
+
+/* Logo: pinned to the bottom-left corner of the screen at ALL screen sizes.
+   It's `position: fixed` unconditionally (not only inside a media query) so
+   it can never depend on a breakpoint actually matching on a given device —
+   that dependency was the root cause of it scrolling with the page on some
+   Android browsers whose reported viewport width didn't trip the old
+   max-width:768px rule. */
+.sidebar-logo {
+  position: fixed;
+  left: 70px;
+  bottom: 18px;
+  width:90px
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo-img {
+  width: var(--sidebar-logo-width, 72px);
+  height: auto;
+  display: block;
 }
 
 .sidebar h2 {
@@ -336,6 +360,9 @@ body {
 
 .main {
   padding: 20px;
+  /* Reserve room at the bottom on every screen size now that the logo is
+     always fixed, so long card lists never scroll in underneath it. */
+  padding-bottom: 90px;
   background: #fff
 }
 
@@ -800,22 +827,6 @@ button.ghost {
   border-bottom: none
 }
 
-/* Sidebar logo: placed bottom-left under the calendar legend. */
-.sidebar {
-  position: relative; /* ensure absolute child is positioned to sidebar */
-}
-.sidebar-logo {
-  position: absolute;
-  left: 20px;
-  bottom: 18px;
-  z-index: 5;
-}
-.sidebar-logo-img {
-  width: var(--sidebar-logo-width, 72px);
-  height: auto;
-  display: block;
-}
-
 .clickable-title {
   cursor: pointer
 }
@@ -1001,6 +1012,11 @@ button.ghost {
   flex: 0 0 auto
 }
 
+/* NOTE: .company-logo below is not referenced by app/page.tsx (which uses
+   .sidebar-logo / .sidebar-logo-img). Left in place in case something else
+   in the project still points at it, but it can be deleted if unused —
+   its old mobile override was position:static, which is the same
+   "scrolls with the page" bug this fix removes from .sidebar-logo. */
 .company-logo {
   position: fixed;
   left: 80px;
@@ -1176,6 +1192,22 @@ button.ghost {
     grid-template-columns: 1fr;
     gap: 12px;
     min-height: 0
+  }
+
+  /* Position is already `fixed` from the base rule above — this override
+     only changes it from a small corner icon into a full-width bottom bar
+     with a background, which is the desired look on narrow screens. */
+  .sidebar-logo {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 10px 0;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    background: #fff;
+  }
+
+  .sidebar-logo-img {
+    width: var(--sidebar-logo-width-mobile, 56px);
   }
 
   .card-row .image-wrap {
@@ -1417,13 +1449,13 @@ button.ghost {
 
 
 @media (max-width:768px) {
-  .post-now-wrap {
+  .post-now_wrap {
     display: inline-flex;
     align-items: center;
     gap: 4px;
   }
 
-  .post-now-wrap .approve-pop {
+  .post-now_wrap .approve-pop {
     position: static !important;
     white-space: nowrap;
     font-size: 11px;
