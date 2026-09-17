@@ -215,27 +215,26 @@ body {
   position: relative;
 }
 
-/* Logo: pinned to the bottom-left corner of the screen at ALL screen sizes.
-   It's `position: fixed` unconditionally (not only inside a media query) so
-   it can never depend on a breakpoint actually matching on a given device —
-   that dependency was the root cause of it scrolling with the page on some
-   Android browsers whose reported viewport width didn't trip the old
-   max-width:768px rule. */
+/* Logo: fixed to the lower-left corner on desktop, and converted into a
+   full-width bottom bar on mobile so it stays visible without scrolling with
+   the page. Keep it responsive across browser viewport quirks. */
 .sidebar-logo {
   position: fixed;
   left: 70px;
   bottom: 18px;
-  width:90px;
+  width: 80px;
   z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
 }
 
 .sidebar-logo-img {
-  width: var(--sidebar-logo-width, 72px);
+  width: clamp(52px, 4.2vw, 78px);
   height: auto;
   display: block;
+  filter: drop-shadow(0 4px 10px rgba(17, 24, 39, 0.08));
 }
 
 .sidebar h2 {
@@ -596,9 +595,19 @@ button.ghost {
 
 .selected-date {
   margin: 0 0 14px;
+  margin-top: 0;
   color: #2f3b5f;
   font-size: 20px;
   font-weight: 400
+}
+
+.selected-date-row .selected-date {
+  margin: 0;
+  margin-top: 0;
+  color: #2f3b5f;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 40px
 }
 
 .cal-head {
@@ -1203,12 +1212,13 @@ button.ghost {
   }
 
   /* Position is already `fixed` from the base rule above — this override
-     only changes it from a small corner icon into a full-width bottom bar
-     with a background, which is the desired look on narrow screens. */
+     turns it into a full-width bar on small screens while keeping the logo
+     aligned and anchored to the viewport. */
   .sidebar-logo {
     left: 0;
     right: 0;
     bottom: 0;
+    width: 100%;
     padding: 10px 0;
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
     background: rgba(255, 255, 255, 0.96);
@@ -1216,12 +1226,14 @@ button.ghost {
     -webkit-backdrop-filter: blur(6px);
     border-top: 1px solid #e5e9f2;
     box-shadow: 0 -8px 24px rgba(31, 41, 55, 0.08);
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
+    z-index: 60;
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    pointer-events: auto;
   }
 
   .sidebar-logo-img {
-    width: var(--sidebar-logo-width-mobile, 56px);
+    width: clamp(42px, 14vw, 64px);
   }
 
   .card-row .image-wrap {
@@ -1530,6 +1542,7 @@ button.ghost {
 
 .selected-date-row .selected-date {
   margin: 0;
+  margin-top: 0;
   color: #2f3b5f;
   font-size: 20px;
   font-weight: 400;
