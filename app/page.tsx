@@ -1466,12 +1466,10 @@ export default function Page() {
                                   onClick={() => {
                                     setPlatformsByPost((prev) => {
                                       const current = prev[post.id] || [];
-                                      const next = selected
-                                        ? current.filter((x) => x !== pl)
-                                        : [...current, pl];
+                                      const next = selected ? current.filter((x) => x !== pl) : [...current, pl];
                                       return { ...prev, [post.id]: next };
                                     });
-                                    setPlatformMenuPostId(post.id);
+                                    setPlatformMenuPostId(null);
                                   }}
                                 >
                                   {pl}
@@ -1481,35 +1479,35 @@ export default function Page() {
                           </div>
                         ) : null}
                       </div>
+                    </div>
 
-                      <div className="right-actions">
-                        <div className="approve-wrap">
-                          <button className="approve-btn" onClick={() => approve(post)}>
-                            {t.approve}
-                          </button>
-                          {approveWarnPostId === post.id ? (
-                            <div className="approve-pop">{t.approveWarning}</div>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          disabled
-                          aria-disabled="true"
-                          className={`status-btn ${
-                            post.status === 'posted'
-                              ? 'status-posted'
-                              : post.status === 'approved' || post.status === 'scheduled'
-                              ? 'status-scheduled'
-                              : 'btn-white'
-                          }`}
-                        >
-                          {post.status === 'posted'
-                            ? '✓ Posted'
-                            : post.status === 'approved' || post.status === 'scheduled'
-                            ? t.scheduledText
-                            : t.statusText}
+                    <div className="right-actions">
+                      <div className="approve-wrap">
+                        <button className="approve-btn" onClick={() => approve(post)}>
+                          {t.approve}
                         </button>
+                        {approveWarnPostId === post.id ? (
+                          <div className="approve-pop">{t.approveWarning}</div>
+                        ) : null}
                       </div>
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        className={`status-btn ${
+                          post.status === 'posted'
+                            ? 'status-posted'
+                            : post.status === 'approved' || post.status === 'scheduled'
+                            ? 'status-scheduled'
+                            : 'btn-white'
+                        }`}
+                      >
+                        {post.status === 'posted'
+                          ? '✓ Posted'
+                          : post.status === 'approved' || post.status === 'scheduled'
+                          ? t.scheduledText
+                          : t.statusText}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1518,88 +1516,6 @@ export default function Page() {
             {!loading && posts.length === 0 ? (
               <div className="empty-state" style={{ textAlign: 'left' }}>
                 <p>{t.noPosts}</p>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-                  <button onClick={generateContent} disabled={generating || customPostSubmitting}>
-                    {generating ? t.triggering : t.generate}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-white"
-                    disabled={generating || customPostSubmitting}
-                    onClick={() => {
-                      setCustomPostSlotLock(null);
-                      setCustomPostForm({ title: '', description: '', imagePrompt: '', slot: SLOT_MORNING });
-                      setCustomPostError('');
-                      setShowCustomPostModal(true);
-                    }}
-                  >
-                    {customPostSubmitting ? t.triggering : t.addCustomPost}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {!loading && posts.length > 0 && missingSlot ? (
-              <div style={{ position: 'relative', marginTop: '16px', textAlign: 'left' }}>
-                <button
-                  type="button"
-                  className="btn-white"
-                  onClick={() => {
-                    const slotTime = missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING;
-                    setAddPostPopupSlot(slotTime);
-                    setAddPostPopupOpen((v) => !v);
-                  }}
-                >
-                  {t.addPostBtn}
-                </button>
-                {addPostPopupOpen ? (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      marginTop: '8px',
-                      background: '#fff',
-                      border: '1px solid #e1e5f0',
-                      borderRadius: '10px',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                      padding: '16px',
-                      zIndex: 20,
-                      minWidth: '260px',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <p style={{ margin: '0 0 12px', color: '#2d3a64' }}>
-                      {t.noPostForSlot.replace('{slot}', missingSlot === 'morning' ? '6:30' : '7:00')}
-                    </p>
-                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        className="btn-white"
-                        onClick={() => {
-                          const slotTime = addPostPopupSlot || (missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING);
-                          setCustomPostSlotLock(slotTime);
-                          setCustomPostForm({ title: '', description: '', imagePrompt: '', slot: slotTime });
-                          setCustomPostError('');
-                          setShowCustomPostModal(true);
-                          setAddPostPopupOpen(false);
-                        }}
-                      >
-                        {t.addCustomPost}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={fillingSlotGenerating}
-                        onClick={() =>
-                          generateContentForSlot(
-                            addPostPopupSlot || (missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING)
-                          )
-                        }
-                      >
-                        {fillingSlotGenerating ? t.triggering : t.generate}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : null}
           </div>
@@ -1632,265 +1548,109 @@ export default function Page() {
         </div>
       ) : null}
 
-      {showCustomPostModal ? (
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            if (!customPostSubmitting) setShowCustomPostModal(false);
-          }}
-        >
-          <div className="modal custom-post-modal" onClick={(e) => e.stopPropagation()}>
-            <button
-              className="modal-close"
-              onClick={() => setShowCustomPostModal(false)}
-              disabled={customPostSubmitting}
-            >
-              ✕
-            </button>
-            <h3 style={{ marginTop: 0 }}>{t.addCustomPost}</h3>
-
-            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
-              {t.titleLabel}
-            </label>
-            <input
-              type="text"
-              value={customPostForm.title}
-              onChange={(e) => setCustomPostForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder={t.titleLabel}
-              disabled={customPostSubmitting}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                border: '1px solid #d9deec',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
-            />
-
-            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
-              {t.descriptionLabel}
-            </label>
-            <textarea
-              className="feedback-textarea"
-              value={customPostForm.description}
-              onChange={(e) => setCustomPostForm((f) => ({ ...f, description: e.target.value }))}
-              placeholder={t.descriptionLabel}
-              disabled={customPostSubmitting}
-            />
-
-            <label style={{ display: 'block', margin: '14px 0 6px', fontWeight: 600, color: '#2d3a64' }}>
-              {t.imagePromptLabel}
-            </label>
-            <input
-              type="text"
-              value={customPostForm.imagePrompt}
-              onChange={(e) => setCustomPostForm((f) => ({ ...f, imagePrompt: e.target.value }))}
-              placeholder={t.imagePromptLabel}
-              disabled={customPostSubmitting}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                border: '1px solid #d9deec',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-              }}
-            />
-
-            <label style={{ display: 'block', margin: '14px 0 8px', fontWeight: 600, color: '#2d3a64' }}>
-              {t.slotSelection}
-            </label>
-            <div style={{ display: 'flex', gap: '18px' }}>
-              {[
-                { value: SLOT_MORNING, label: '6:30' },
-                { value: SLOT_EVENING, label: '7:00' },
-              ].map((opt) => {
-                const locked = !!customPostSlotLock && customPostSlotLock !== opt.value;
-                return (
-                  <label
-                    key={opt.value}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      color: locked ? '#aab0c2' : '#2d3a64',
-                      cursor: locked ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="custom-post-slot"
-                      checked={customPostForm.slot === opt.value}
-                      disabled={customPostSubmitting || locked}
-                      onChange={() => setCustomPostForm((f) => ({ ...f, slot: opt.value }))}
-                    />
-                    {opt.label}
-                  </label>
-                );
-              })}
-            </div>
-
-            {customPostError ? (
-              <p style={{ margin: '14px 0 0', fontSize: '13px', color: '#b3261e' }}>{customPostError}</p>
-            ) : null}
-
-            <div className="modal-actions">
-              <button className="btn-white" onClick={() => setShowCustomPostModal(false)} disabled={customPostSubmitting}>
-                {t.cancel}
-              </button>
-              <button
-                onClick={submitCustomPost}
-                disabled={customPostSubmitting || !customPostForm.title.trim() || !customPostForm.description.trim()}
-              >
-                {customPostSubmitting ? t.triggering : t.createPost}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {viewPost ? (
-        <div className="modal-backdrop">
-          <div className="modal" ref={modalRef} onClick={(e) => e.stopPropagation()}>
-            <button
-              className="modal-close"
-              onClick={() => {
-                setViewPost(null);
-                setLangMenuOpen(false);
-                setModalIsEditing(false);
-                setModalDraftCaption('');
-              }}
-            >
+        <div className="modal-backdrop" onClick={() => setViewPost(null)}>
+          <div className="modal post-view-modal" onClick={(e) => e.stopPropagation()} ref={modalRef}>
+            <button className="modal-close" onClick={() => setViewPost(null)}>
               ✕
             </button>
-            <img
-              className="modal-image"
-              src={proxiedImageUrl(viewPost.image_url)}
-              alt="Post image"
-              onError={(e) => {
-                e.currentTarget.src = 'https://via.placeholder.com/1200x700?text=Image+unavailable';
-              }}
-            />
-            <div className="modal-lang-row">
-              <div className="lang-modal-wrap">
-                <button type="button" className="lang-modal-select" onClick={() => setLangMenuOpen((v) => !v)}>
-                  {(improveLangByPost[viewPost.id] || 'English') === 'English'
-                    ? 'EN'
-                    : (improveLangByPost[viewPost.id] || 'English') === 'Bengali'
-                    ? 'BD'
-                    : 'DE'}{' '}
-                  <span className="lang-caret">▼</span>
-                </button>
-                {langMenuOpen ? (
-                  <div className="lang-modal-menu">
-                    {[
-                      { value: 'English', label: 'EN' },
-                      { value: 'Bengali', label: 'BD' },
-                      { value: 'German', label: 'DE' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        className={`lang-modal-option ${
-                          (improveLangByPost[viewPost.id] || 'English') === opt.value ? 'selected' : ''
-                        }`}
-                        onClick={() => {
-                          setImproveLangByPost((prev) => ({ ...prev, [viewPost.id]: opt.value }));
-                          setLangMenuOpen(false);
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+
+            <div className="modal-content">
+              <div className="image-wrap">
+                <img
+                  src={proxiedImageUrl(viewPost.image_url)}
+                  alt="Post image"
+                  className="post-image"
+                  onError={(e) => {
+                    e.currentTarget.src = 'https://via.placeholder.com/1200x700?text=Image+unavailable';
+                  }}
+                />
+              </div>
+
+              <div className="text-content">
+                <h3 className="post-title">{deriveTitle(viewPost)}</h3>
+
+                <div className="schedule-hint-row">
+                  <button type="button" className="schedule-hint-btn" disabled aria-disabled="true">
+                    {formatCardTime(viewPost.scheduled_time)}
+                    {'\u00A0\u00A0\u00A0'}or
+                  </button>
+                </div>
+
+                <div className="caption-wrap">
+                  <h4>Caption</h4>
+                  <div className="caption-content">
+                    {modalIsEditing ? (
+                      <textarea
+                        className="caption-editor"
+                        value={modalDraftCaption}
+                        onChange={(e) => setModalDraftCaption(e.target.value)}
+                      />
+                    ) : (
+                      <div className="caption-text" dir="auto">
+                        {modalCaptionLoading ? 'Translating...' : modalCaptionText}
+                        {modalTranslationFailed ? (
+                          <span className="translation-failed"> (Translation failed)</span>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
-                ) : null}
+                </div>
+
+                <div className="modal-actions">
+                  {modalIsEditing ? (
+                    <>
+                      <button className="btn-white" onClick={() => setModalIsEditing(false)}>
+                        {t.cancel}
+                      </button>
+                      <button
+                        onClick={saveModalEdit}
+                        disabled={modalDraftCaption.trim() === (modalCaptionText || '')}
+                      >
+                        Save Changes
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setModalIsEditing(true)}
+                      disabled={modalCaptionLoading}
+                      className="edit-caption-btn"
+                    >
+                      Edit Caption
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="modal-caption-row">
-              {modalIsEditing ? (
-                <div className="modal-caption-edit-wrap">
-                  <button
-                    type="button"
-                    className="modal-caption-edit-close"
-                    onClick={() => {
-                      setModalIsEditing(false);
-                      setModalDraftCaption(modalCaptionText || '');
-                    }}
-                    aria-label="Cancel caption edit"
-                  >
-                    ✕
-                  </button>
-                  <textarea
-                    className="modal-caption-editor"
-                    value={modalDraftCaption}
-                    onChange={(e) => setModalDraftCaption(e.target.value)}
-                  />
+
+            <div className="modal-footer">
+              <div className="platforms-info">
+                <h4>Platforms</h4>
+                <div className="platforms-list">
+                  {(platformsByPost[viewPost.id] || []).length === 0 ? (
+                    <p>No platforms selected.</p>
+                  ) : (
+                    (platformsByPost[viewPost.id] || []).map((pl) => (
+                      <span key={pl} className="platform-chip" title={pl}>
+                        <img src={platformIcon(pl)} alt={pl} />
+                      </span>
+                    ))
+                  )}
                 </div>
-              ) : (
-                <>
-                  <p className="modal-caption">{modalCaptionLoading ? 'Translating...' : modalCaptionText}</p>
-                  {!modalCaptionLoading && modalTranslationFailed ? (
-                    <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#9a5b00' }}>
-                      Translation service unavailable right now — showing the original text.
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-            <div className="modal-actions">
-              {modalIsEditing && modalHasChanges ? (
-                <button className="improve-btn" onClick={saveModalEdit}>
-                  Save
-                </button>
-              ) : (
-                <>
-                  <button
-                    disabled={improvingPostId === viewPost.id}
-                    className={improvingPostId === viewPost.id ? 'improve-btn loading' : 'improve-btn'}
-                    onClick={async () => {
-                      const currentPost = viewPost;
-                      setImprovingPostId(currentPost.id);
-                      const ok = await beginEdit(currentPost);
-                      setImprovingPostId(null);
-                      if (ok) {
-                        const now = new Date();
-                        const datePart = now.toLocaleDateString();
-                        const timePart = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        const notice = `${firstFourWords(deriveTitle(currentPost))}... improved on ${datePart} ${timePart}`;
-                        setNotifications((prev) => [notice, ...prev]);
-                        setUnreadCount((n) => n + 1);
-                        setShowMoreNotice(notice);
-                        setTimeout(() => setShowMoreNotice(''), 6500);
-                      }
-                    }}
-                  >
-                    Improve
-                  </button>
-                  <button
-                    className="improve-btn"
-                    onClick={() => {
-                      const currentScrollTop = modalRef.current ? modalRef.current.scrollTop : 0;
-                      setModalIsEditing(true);
-                      setModalDraftCaption(modalCaptionText || '');
-                      requestAnimationFrame(() => {
-                        if (modalRef.current) modalRef.current.scrollTop = currentScrollTop;
-                      });
-                    }}
-                  >
-                    {t.edit}
-                  </button>
-                </>
-              )}
-              {improvingPostId === viewPost.id ? <span className="spinner" aria-label="loading" /> : null}
+              </div>
+
+              <div className="status-info">
+                <h4>Status</h4>
+                <div className="status-badge">
+                  {viewPost.status === 'posted'
+                    ? '✓ Posted'
+                    : viewPost.status === 'approved' || viewPost.status === 'scheduled'
+                    ? t.scheduledText
+                    : t.statusText}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
-
-      {showMoreNotice ? (
-        <div className="screen-notice" onClick={() => setShowMoreNotice('')}>
-          {showMoreNotice}
         </div>
       ) : null}
     </>
