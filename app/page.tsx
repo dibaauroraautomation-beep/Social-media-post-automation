@@ -1516,6 +1516,61 @@ export default function Page() {
             {!loading && posts.length === 0 ? (
               <div className="empty-state" style={{ textAlign: 'left' }}>
                 <p>{t.noPosts}</p>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+                  <button onClick={generateContent} disabled={generating || customPostSubmitting}>
+                    {generating ? t.triggering : t.generate}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!loading && posts.length > 0 && missingSlot ? (
+              <div style={{ position: 'relative', marginTop: '16px', textAlign: 'left' }}>
+                <button
+                  type="button"
+                  className="btn-white"
+                  onClick={() => {
+                    const slotTime = missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING;
+                    setAddPostPopupSlot(slotTime);
+                    setAddPostPopupOpen((v) => !v);
+                  }}
+                >
+                  {t.addPostBtn}
+                </button>
+                {addPostPopupOpen ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      marginTop: '8px',
+                      background: '#fff',
+                      border: '1px solid #e1e5f0',
+                      borderRadius: '10px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      padding: '16px',
+                      zIndex: 20,
+                      minWidth: '260px',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 12px', color: '#2d3a64' }}>
+                      {t.noPostForSlot.replace('{slot}', missingSlot === 'morning' ? '6:30' : '7:00')}
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        disabled={fillingSlotGenerating}
+                        onClick={() =>
+                          generateContentForSlot(
+                            addPostPopupSlot || (missingSlot === 'morning' ? SLOT_MORNING : SLOT_EVENING)
+                          )
+                        }
+                      >
+                        {fillingSlotGenerating ? t.triggering : t.generate}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
