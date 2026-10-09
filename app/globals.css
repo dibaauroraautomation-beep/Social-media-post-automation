@@ -385,42 +385,47 @@ header h1 {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #dbe2f0;
-  border-radius: 12px;
-  padding: 20px 20px 16px;
+  background: #f3f6fb;
+  border: 1px solid #dfe7f3;
+  border-radius: 14px;
+  padding: 18px 18px 14px;
   width: min(1080px, 100%);
   min-height: 200px;
-  box-shadow: 0 10px 26px rgba(20, 32, 60, .12)
+  box-shadow: 0 8px 18px rgba(20, 32, 60, .08)
 }
 
 .card-row {
   display: grid;
-  grid-template-columns: 230px 1fr;
-  gap: 24px;
-  align-items: stretch;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
   min-height: 120px
 }
 
 .card-row .image-wrap {
-  width: 230px;
-  height: 150px
+  width: 240px;
+  height: 152px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(124, 136, 168, 0.18)
 }
 
 .card-media {
   display: flex;
   flex-direction: column;
-  height: 100%
+  height: 100%;
+  min-width: 0
 }
 
 .post-title {
   min-height: 24px;
-  margin: 20px 0 8px;
-  font-size: 19px;
-  font-weight: 700;
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 800;
   color: #1f2937;
   font-family: Inter, -apple-system, SF Pro Text, Roboto, system-ui, sans-serif;
-  line-height: 1.25
+  line-height: 1.25;
+  letter-spacing: -0.02em
 }
 
 .time-label {
@@ -534,11 +539,11 @@ p {
 
 .actions {
   display: flex;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 12px;
+  gap: 10px;
+  margin-top: 0;
+  padding-top: 0;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   width: 100%
 }
 
@@ -894,11 +899,11 @@ button.ghost {
 .platform-slot {
   width: auto;
   min-width: 0;
-  height: 40px;
-  border: 1px solid #d7deed;
-  border-radius: 10px;
+  height: 100%;
+  border: none;
+  background: transparent;
   gap: 8px;
-  padding: 0 16px
+  padding: 0
 }
 
 .platform-chip,
@@ -1041,20 +1046,18 @@ button.ghost {
   background: transparent;
   padding: 0;
   min-width: 0;
-  height: 40px
+  height: 100%
 }
 
 .platform-placeholder {
-  font-size: 14.5px;
-  font-weight: 400;
-  color: #2d3a64;
-  font-family: Inter, Roboto, system-ui, -apple-system, Segoe UI, sans-serif;
-  line-height: 1
+  font-size: 15px;
+  font-weight: 500;
+  color: #2d3a64
 }
 
 .platform-combo-btn {
-  height: 40px;
-  min-width: 150px;
+  height: 38px;
+  min-width: 134px;
   width: auto;
   padding: 0 10px;
   display: inline-flex;
@@ -1062,24 +1065,9 @@ button.ghost {
   gap: 8px;
   border: 1px solid #d7deed !important;
   background: #fff !important;
-  font-weight: 400
-}
-
-.platform-combo-btn .platform-slot {
-  width: auto;
-  max-width: none;
-  display: flex;
-  align-items: center;
-  gap: 8px
-}
-
-.platform-combo-btn .platform-slot,
-.platform-combo-btn .platform-slot.has-selection {
-  min-width: 0;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0
+  font-weight: 500;
+  font-size: 15px;
+  border-radius: 10px
 }
 
 .platform-caret {
@@ -1091,76 +1079,8 @@ button.ghost {
   align-items: center
 }
 
-.platform-combo-btn.has-selection {
-  border: 1px solid #d7deed !important;
-  background: #fff !important;
-  padding: 0 10px !important;
-  min-width: 0;
-  width: auto
-}
-
-.improve-btn {
-  font-weight: 400;
-  border: 1px solid #d1d5db;
-  color: #000
-}
-
-.modal-caption-row {
-  display: block;
-  margin-top: 10px
-}
-
-.modal-actions .improve-btn {
-  font-weight: 400;
-  color: #000 !important
-}
-
 .card .actions .approve-btn {
   font-weight: 700
-}
-
-.time-input::-webkit-datetime-edit-ampm-field {
-  margin-left: 0;
-  padding-left: 0
-}
-
-.time-input::-webkit-datetime-edit-hour-field,
-.time-input::-webkit-datetime-edit-minute-field {
-  padding: 0
-}
-
-.time-input::-webkit-datetime-edit,
-.time-input::-webkit-datetime-edit-text {
-  padding: 0;
-  margin: 0
-}
-
-.showmore-notice {
-  position: absolute;
-  top: 12px;
-  right: 52px;
-  max-width: 340px;
-  z-index: 25
-}
-
-.screen-notice,
-.showmore-notice {
-  background: #fff;
-  border: 1px solid #d7deed;
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: #1f2937;
-  font-size: 13px;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, .1);
-  cursor: pointer
-}
-
-.screen-notice {
-  position: fixed;
-  top: 82px;
-  right: 16px;
-  max-width: 360px;
-  z-index: 1200
 }
 
 @media (max-width:768px) {
